@@ -1,20 +1,49 @@
 import os
 import dill
+import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
 
-# Definir rutas globales para el modelo
-BASE_PATH = os.path.abspath(os.path.join(os.getcwd(), ".."))
-MODEL_DIR = os.path.join(BASE_PATH, "models")
-MODEL_PATH = os.path.join(MODEL_DIR, "model.pkl")
+# Definir rutas
+BASE_PATH = os.path.abspath(os.path.dirname(__file__))
+MODEL_PATH = os.path.join(BASE_PATH, "model.pkl")
 
 def load_pipeline():
     with open(MODEL_PATH, "rb") as f:
         pipeline = dill.load(f)
     return pipeline
+
+def safe_log_transform_fixed(X):
+    # Si X no es un DataFrame, intenta convertirlo a uno.
+    if not isinstance(X, pd.DataFrame):
+        try:
+            X = pd.DataFrame(X)
+        except Exception:
+            # Si no se puede convertir, lo dejamos como está.
+            pass
+
+    # Si al final X es un DataFrame, procedemos
+    if isinstance(X, pd.DataFrame):
+        X_copy = X.copy()
+        for col in X_copy.columns:
+            try:
+                # Intentamos convertir la columna a numérico y aplicar np.log1p
+                X_copy[col] = pd.to_numeric(X_copy[col], errors="coerce")
+                X_copy[col] = np.log1p(X_copy[col])
+            except Exception:
+                # Si falla para alguna columna (por ejemplo, columna no numérica), no la transformamos
+                pass
+        return X_copy
+    else:
+        # Si X todavía no es un DataFrame, intentamos convertirlo a un array y aplicar np.log1p
+        try:
+            arr = np.array(X)
+            return np.log1p(arr.astype(float))
+        except Exception:
+            return X
 
 @app.route('/', methods=['GET'])
 def home():
@@ -32,7 +61,7 @@ def param_info(param):
     """
     descriptions = {
         "Gender": "El género del pasajero (por ejemplo, 'Male' o 'Female').",
-        "Customer Type": "El tipo de cliente (por ejemplo, 'Loyal' o 'disloyal').",
+        "Customer Type": "El tipo de cliente (por ejemplo, 'Loyal' o 'Disloyal').",
         "Age": "La edad del pasajero en años.",
         "Type of Travel": "El tipo de viaje (por ejemplo, 'Business' o 'Personal').",
         "Class": "La clase del vuelo (por ejemplo, 'Economy', 'Business').",
@@ -57,7 +86,9 @@ def param_info(param):
     info = descriptions.get(param, "No se tiene información específica para este parámetro.")
     html_info = f"""
     <html>
-      <head><title>Información de {param}</title></head>
+      <head>
+        <title>Información de {param}</title>
+      </head>
       <body>
         <h1>Información sobre {param}</h1>
         <p>{info}</p>
@@ -103,6 +134,11 @@ def predict():
             
             # Cargar el pipeline desde el archivo .pkl
             pipeline = load_pipeline()
+
+            # Monkey-patching: Reemplazar la función log_transform en el pipeline
+            pipeline.named_steps["log_transform"].func = safe_log_transform_fixed
+
+            # Realizar la predicción
             y_pred = pipeline.predict(df_input)
             pred_value = int(y_pred[0])
             pred_label = "satisfied" if pred_value == 1 else "neutral or dissatisfied"
@@ -111,8 +147,14 @@ def predict():
         except Exception as e:
             return f"<h1>Error: {str(e)}</h1><br><a href='/predict'>Volver al formulario</a>"
     else:
-        # HTML del formulario con links de información al lado de cada parámetro.
-        form_html = """
+        # Opciones para dropdown
+        gender_options = ['Male', 'Female']
+        customer_type_options = ['Loyal', 'Disloyal']
+        travel_type_options = ['Business', 'Personal']
+        class_options = ['Economy', 'Business']
+        calificaciones_1_5 = [1, 2, 3, 4, 5]
+        
+        form_html = f"""
         <html>
           <head>
             <title>Formulario de Predicción</title>
@@ -121,12 +163,17 @@ def predict():
             <h1>Formulario de Predicción</h1>
             <p>Para más información sobre un parámetro, pincha en el enlace [info] a su lado.</p>
             <form method="post" action="/predict">
+              
               <label>Gender:</label>
-              <input type="text" name="Gender" required>
+              <select name="Gender" required>
+                {''.join([f"<option value='{opt}'>{opt}</option>" for opt in gender_options])}
+              </select>
               <a href="/param_info/Gender" target="_blank">[info]</a><br><br>
               
               <label>Customer Type:</label>
-              <input type="text" name="Customer Type" required>
+              <select name="Customer Type" required>
+                {''.join([f"<option value='{opt}'>{opt}</option>" for opt in customer_type_options])}
+              </select>
               <a href="/param_info/Customer Type" target="_blank">[info]</a><br><br>
               
               <label>Age:</label>
@@ -134,11 +181,15 @@ def predict():
               <a href="/param_info/Age" target="_blank">[info]</a><br><br>
               
               <label>Type of Travel:</label>
-              <input type="text" name="Type of Travel" required>
+              <select name="Type of Travel" required>
+                {''.join([f"<option value='{opt}'>{opt}</option>" for opt in travel_type_options])}
+              </select>
               <a href="/param_info/Type of Travel" target="_blank">[info]</a><br><br>
               
               <label>Class:</label>
-              <input type="text" name="Class" required>
+              <select name="Class" required>
+                {''.join([f"<option value='{opt}'>{opt}</option>" for opt in class_options])}
+              </select>
               <a href="/param_info/Class" target="_blank">[info]</a><br><br>
               
               <label>Flight Distance:</label>
@@ -146,59 +197,87 @@ def predict():
               <a href="/param_info/Flight Distance" target="_blank">[info]</a><br><br>
               
               <label>Inflight wifi service:</label>
-              <input type="number" step="any" name="Inflight wifi service" required>
+              <select name="Inflight wifi service" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Inflight wifi service" target="_blank">[info]</a><br><br>
               
               <label>Departure/Arrival time convenient:</label>
-              <input type="number" step="any" name="Departure/Arrival time convenient" required>
+              <select name="Departure/Arrival time convenient" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Departure/Arrival time convenient" target="_blank">[info]</a><br><br>
               
               <label>Ease of Online booking:</label>
-              <input type="number" step="any" name="Ease of Online booking" required>
+              <select name="Ease of Online booking" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Ease of Online booking" target="_blank">[info]</a><br><br>
               
               <label>Gate location:</label>
-              <input type="number" step="any" name="Gate location" required>
+              <select name="Gate location" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Gate location" target="_blank">[info]</a><br><br>
               
               <label>Food and drink:</label>
-              <input type="number" step="any" name="Food and drink" required>
+              <select name="Food and drink" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Food and drink" target="_blank">[info]</a><br><br>
               
               <label>Online boarding:</label>
-              <input type="number" step="any" name="Online boarding" required>
+              <select name="Online boarding" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Online boarding" target="_blank">[info]</a><br><br>
               
               <label>Seat comfort:</label>
-              <input type="number" step="any" name="Seat comfort" required>
+              <select name="Seat comfort" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Seat comfort" target="_blank">[info]</a><br><br>
               
               <label>Inflight entertainment:</label>
-              <input type="number" step="any" name="Inflight entertainment" required>
+              <select name="Inflight entertainment" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Inflight entertainment" target="_blank">[info]</a><br><br>
               
               <label>On-board service:</label>
-              <input type="number" step="any" name="On-board service" required>
+              <select name="On-board service" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/On-board service" target="_blank">[info]</a><br><br>
               
               <label>Leg room service:</label>
-              <input type="number" step="any" name="Leg room service" required>
+              <select name="Leg room service" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Leg room service" target="_blank">[info]</a><br><br>
               
               <label>Baggage handling:</label>
-              <input type="number" step="any" name="Baggage handling" required>
+              <select name="Baggage handling" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Baggage handling" target="_blank">[info]</a><br><br>
               
               <label>Checkin service:</label>
-              <input type="number" step="any" name="Checkin service" required>
+              <select name="Checkin service" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Checkin service" target="_blank">[info]</a><br><br>
               
               <label>Inflight service:</label>
-              <input type="number" step="any" name="Inflight service" required>
+              <select name="Inflight service" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Inflight service" target="_blank">[info]</a><br><br>
               
               <label>Cleanliness:</label>
-              <input type="number" step="any" name="Cleanliness" required>
+              <select name="Cleanliness" required>
+                {''.join([f"<option value='{c}'>{c}</option>" for c in calificaciones_1_5])}
+              </select>
               <a href="/param_info/Cleanliness" target="_blank">[info]</a><br><br>
               
               <label>Departure Delay in Minutes:</label>
@@ -216,21 +295,17 @@ def predict():
          """
         return render_template_string(form_html)
 
-
-# Endpoint Status: devuelve información sobre el estado de la API y el modelo.
 @app.route("/status", methods=["GET"])
 def status():
     pipeline = load_pipeline()
-    # Extraer información básica:
+    # Extraer información básica del modelo. Se asume que el modelo real está en la etapa "model" del pipeline.
     model_step = pipeline.named_steps.get("model")
     if model_step is not None and hasattr(model_step, "named_steps"):
-        # Suponiendo que el modelo real está dentro de la etapa "model" del pipeline anidado.
         best_model = model_step.named_steps.get("model")
         model_type = best_model.__class__.__name__ if best_model is not None else "Desconocido"
     else:
         model_type = "Desconocido"
     
-    # Se listan los pasos principales del pipeline para ofrecer una visión global.
     steps = [name for name, _ in pipeline.steps]
     
     status_info = {
