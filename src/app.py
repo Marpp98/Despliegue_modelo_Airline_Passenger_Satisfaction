@@ -1,4 +1,5 @@
 import os
+import sys
 import dill
 import numpy as np
 import pandas as pd
@@ -7,58 +8,90 @@ from flask import Flask, request, jsonify, render_template_string
 app = Flask(__name__)
 app.config["DEBUG"] = True
 
-# Definir rutas
+# Definir rutas con ruta absoluta
 BASE_PATH = os.path.abspath(os.path.dirname(__file__))
 MODEL_PATH = os.path.join(BASE_PATH, "model.pkl")
 
-def load_pipeline():
-    with open(MODEL_PATH, "rb") as f:
-        pipeline = dill.load(f)
-    return pipeline
+# Definir la variable global con las columnas numéricas a transformar (según Notebook I)
+numerical_cols_log = ['Flight Distance', 'Departure Delay in Minutes', 'Arrival Delay in Minutes']
 
 def safe_log_transform_fixed(X):
-    # Si X no es un DataFrame, intenta convertirlo a uno.
     if not isinstance(X, pd.DataFrame):
         try:
             X = pd.DataFrame(X)
         except Exception:
-            # Si no se puede convertir, lo dejamos como está.
-            pass
-
-    # Si al final X es un DataFrame, procedemos
+            return X
     if isinstance(X, pd.DataFrame):
         X_copy = X.copy()
-        for col in X_copy.columns:
+        for col in numerical_cols_log:
             try:
-                # Intentamos convertir la columna a numérico y aplicar np.log1p
                 X_copy[col] = pd.to_numeric(X_copy[col], errors="coerce")
                 X_copy[col] = np.log1p(X_copy[col])
             except Exception:
-                # Si falla para alguna columna (por ejemplo, columna no numérica), no la transformamos
                 pass
         return X_copy
     else:
-        # Si X todavía no es un DataFrame, intentamos convertirlo a un array y aplicar np.log1p
         try:
             arr = np.array(X)
             return np.log1p(arr.astype(float))
         except Exception:
             return X
 
+# Monkey-patching para que el pipeline use la función corregida
+sys.modules["__main__"].safe_log_transform = safe_log_transform_fixed
+
+def load_pipeline():
+    with open(MODEL_PATH, "rb") as f:
+        pipeline = dill.load(f)
+    return pipeline
+
 @app.route('/', methods=['GET'])
 def home():
-    return """
-    <h1>Bienvenido a  nuestra api del modelo 'Airline Passenger Satisfaction'</h1>
-    <p>Este espacio es un prototipo de API.</p>
-    <p> Para más información sobre el modelo, <a href="https://github.com/Marpp98/Pipelines_Airline_Passenger_Satisfaction" target="_blank">pincha aquí</a>.</p>
+    # Lista de parámetros disponibles para ver info
+    params = [
+        "Gender", "Customer Type", "Age", "Type of Travel", "Class", "Flight Distance",
+        "Inflight wifi service", "Departure/Arrival time convenient", "Ease of Online booking",
+        "Gate location", "Food and drink", "Online boarding", "Seat comfort",
+        "Inflight entertainment", "On-board service", "Leg room service", "Baggage handling",
+        "Checkin service", "Inflight service", "Cleanliness", "Departure Delay in Minutes",
+        "Arrival Delay in Minutes"
+    ]
+    home_html = f"""
+    <html>
+      <head>
+        <title>Inicio - Airline Passenger Satisfaction API</title>
+        <script>
+          function openParamInfo() {{
+            var e = document.getElementById("paramsDropdown");
+            var selectedParam = e.options[e.selectedIndex].value;
+            var url = "/param_info/" + encodeURIComponent(selectedParam);
+            window.open(url, "_blank");
+          }}
+        </script>
+      </head>
+      <body>
+        <h1>Bienvenido a nuestra API del modelo "Airline Passenger Satisfaction"</h1>
+        <p>Este espacio es un prototipo de API.</p>
+        <p>Para más información sobre el modelo, <a href="https://github.com/Marpp98/Pipelines_Airline_Passenger_Satisfaction" target="_blank">pincha aquí</a>.</p>
+        <h2>Endpoints disponibles</h2>
+        <ul>
+          <li><a href="/predict" target="_blank">Predict</a></li>
+          <li><a href="/status" target="_blank">Status</a></li>
+          <li>
+            <strong>Información sobre los parámetros:</strong><br>
+            <select id="paramsDropdown">
+              {''.join([f"<option value='{p}'>{p}</option>" for p in params])}
+            </select>
+            <button onclick="openParamInfo()">Ver Información</button>
+          </li>
+        </ul>
+      </body>
+    </html>
     """
-
+    return home_html
 
 @app.route("/param_info/<param>")
 def param_info(param):
-    """
-    Muestra información adicional acerca del parámetro.
-    """
     descriptions = {
         "Gender": "El género del pasajero (por ejemplo, 'Male' o 'Female').",
         "Customer Type": "El tipo de cliente (por ejemplo, 'Loyal' o 'Disloyal').",
@@ -102,7 +135,6 @@ def param_info(param):
 def predict():
     if request.method == "POST":
         try:
-            # Recoger los datos enviados del formulario
             input_data = {
                 "Gender": request.form.get("Gender"),
                 "Customer Type": request.form.get("Customer Type"),
@@ -127,19 +159,13 @@ def predict():
                 "Departure Delay in Minutes": float(request.form.get("Departure Delay in Minutes")),
                 "Arrival Delay in Minutes": float(request.form.get("Arrival Delay in Minutes"))
             }
-            # Convertir a DataFrame
             df_input = pd.DataFrame([input_data])
-            # Agregar la columna dummy 'satisfaction' para mantener la consistencia
             df_input["satisfaction"] = "neutral or dissatisfied"
             
-            # Cargar el pipeline desde el archivo .pkl
             pipeline = load_pipeline()
-
-            # Monkey-patching: Reemplazar la función log_transform en el pipeline
-            pipeline.named_steps["log_transform"].func = safe_log_transform_fixed
-
-            # Realizar la predicción
-            y_pred = pipeline.predict(df_input)
+            transformed = pipeline[:-1].transform(df_input)
+            X_final = transformed[:, 1:]
+            y_pred = pipeline.named_steps["model"].predict(X_final)
             pred_value = int(y_pred[0])
             pred_label = "satisfied" if pred_value == 1 else "neutral or dissatisfied"
             
@@ -147,7 +173,6 @@ def predict():
         except Exception as e:
             return f"<h1>Error: {str(e)}</h1><br><a href='/predict'>Volver al formulario</a>"
     else:
-        # Opciones para dropdown
         gender_options = ['Male', 'Female']
         customer_type_options = ['Loyal', 'Disloyal']
         travel_type_options = ['Business', 'Personal']
@@ -298,7 +323,6 @@ def predict():
 @app.route("/status", methods=["GET"])
 def status():
     pipeline = load_pipeline()
-    # Extraer información básica del modelo. Se asume que el modelo real está en la etapa "model" del pipeline.
     model_step = pipeline.named_steps.get("model")
     if model_step is not None and hasattr(model_step, "named_steps"):
         best_model = model_step.named_steps.get("model")
