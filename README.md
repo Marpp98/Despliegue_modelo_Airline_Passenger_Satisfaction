@@ -7,8 +7,12 @@ xxxx
 ## Estructura del Proyecto
 src/
 │── main.py
+|
 │── model.pkl
+|
 │── requirements.txt
+|
 │── README.md
+
 
 
