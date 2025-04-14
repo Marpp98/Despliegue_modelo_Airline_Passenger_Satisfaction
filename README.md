@@ -6,7 +6,6 @@ xxxx
 
 ## Estructura del Proyecto
 src/
-<<<<<<< HEAD
 │── main.py
 |
 │── model.pkl
@@ -14,12 +13,6 @@ src/
 │── requirements.txt
 |
 │── README.md
-=======
-├── main.py             # Archivo principal de la aplicación Flask con los endpoints
-├── model.pkl           # Modelo de Machine Learning previamente entrenado 
-├── requirements.txt    # Lista de dependencias necesarias para ejecutar la aplicación
-└── README.md           # Documentación del proyecto
->>>>>>> b397f910ad6bf78d6b0c78b3f6709ba173fc333b
 
 
 
