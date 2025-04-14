@@ -78,12 +78,13 @@ def home():
           <li><a href="/predict" target="_blank">Predict</a></li>
           <li><a href="/status" target="_blank">Status</a></li>
           <li>
-            <strong>Información sobre los parámetros:</strong><br>
+            <span>Información sobre los parámetros:</span>
             <select id="paramsDropdown">
               {''.join([f"<option value='{p}'>{p}</option>" for p in params])}
             </select>
-            <button onclick="openParamInfo()">Ver Información</button>
+            <button onclick="openParamInfo()">Saber más</button>
           </li>
+
         </ul>
       </body>
     </html>
