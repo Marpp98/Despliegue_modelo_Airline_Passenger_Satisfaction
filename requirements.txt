@@ -2,3 +2,4 @@ dill
 numpy
 pandas
 Flask
+gunicorn
