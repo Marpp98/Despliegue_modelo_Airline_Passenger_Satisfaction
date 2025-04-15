@@ -5,6 +5,7 @@ El modelo está accesible desde la siguiente URL pública proporcionada por [Ren
 
 
 ## Estructura del Proyecto
+'''
 src/
 │── main.py
 |
@@ -13,6 +14,6 @@ src/
 │── requirements.txt
 |
 │── README.md
-
+'''
 
 
