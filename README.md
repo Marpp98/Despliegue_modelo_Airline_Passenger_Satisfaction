@@ -7,14 +7,14 @@ El modelo está accesible desde la siguiente URL pública proporcionada por [Ren
 
 
 ## Estructura del Proyecto
-'''
+```
 DESPLIEGUE_MODELO_AIRLINE_PASSENGER_SATISFACTION  
-├── requirements.txt  # Dependencias necesarias...
-└── README.md         # Documentación específica...
+├── requirements.txt  # Dependencias necesarias
+└── README.md         # Documentación específica
 └── src  
-    ├── app.py        # Código principal...
+    ├── app.py        # Código principal
     └── model.pkl     # Modelo entrenado
-'''
+```
 
 
 
