@@ -337,7 +337,7 @@ def status():
         "status": "OK",
         "model_type": model_type,
         "pipeline_steps": steps,
-        "message": "La API está funcionando correctamente."
+        "message": "La API funciona correctamente."
     }
     
     return jsonify(status_info)
