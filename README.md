@@ -3,7 +3,7 @@ Este proyecto tiene como objetivo desplegar un modelo de machine learning accesi
 
 El sistema permite realizar predicciones enviando datos de entrada al modelo desde cualquier cliente que pueda hacer peticiones HTTP (por ejemplo, usando requests en Python).
 
-El modelo está accesible desde la siguiente URL pública proporcionada por [Render](https://despliegue-modelo-airline-passenger.onrender.com/).
+El modelo está accesible desde la siguiente URL pública proporcionada por [Render](https://despliegue-modelo-airline-passenger-u25i.onrender.com).
 
 
 ## Estructura del Proyecto
