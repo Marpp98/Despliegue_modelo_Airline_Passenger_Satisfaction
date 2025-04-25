@@ -45,6 +45,10 @@ def load_pipeline():
     import __main__
     __main__.pd = pd
 
+        __main__.pd = pd
+    __main__.numerical_cols_log = ['Flight Distance', 'Departure Delay in Minutes', 'Arrival Delay in Minutes']
+    __main__.safe_log_transform = safe_log_transform_fixed
+
     with open(MODEL_PATH, "rb") as f:
         pipeline = dill.load(f)
     return pipeline
