@@ -42,7 +42,7 @@ sys.modules["__main__"].safe_log_transform = safe_log_transform_fixed
 
 def load_pipeline():
     import pandas as pd
-    import numpy as pd
+    import numpy as np
     import __main__
     __main__.pd = pd
     __main__.np = np
