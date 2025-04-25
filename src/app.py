@@ -42,8 +42,10 @@ sys.modules["__main__"].safe_log_transform = safe_log_transform_fixed
 
 def load_pipeline():
     import pandas as pd
+    import numpy as pd
     import __main__
     __main__.pd = pd
+    __main__.np = np
 
     __main__.numerical_cols_log = ['Flight Distance', 'Departure Delay in Minutes', 'Arrival Delay in Minutes']
     __main__.safe_log_transform = safe_log_transform_fixed
