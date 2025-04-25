@@ -41,6 +41,10 @@ def safe_log_transform_fixed(X):
 sys.modules["__main__"].safe_log_transform = safe_log_transform_fixed
 
 def load_pipeline():
+    import pandas as pd
+    import __main__
+    __main__.pd = pd
+
     with open(MODEL_PATH, "rb") as f:
         pipeline = dill.load(f)
     return pipeline
